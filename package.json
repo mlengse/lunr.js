@@ -2,15 +2,17 @@
   "name": "lunr",
   "description": "Simple full-text search in your browser.",
   "version": "2.3.9",
-  "author": "Oliver Nightingale",
-  "keywords": ["search"],
+  "author": "mLengse (medotsys@gmail.com)",
+  "keywords": [
+    "search"
+  ],
   "homepage": "https://lunrjs.com",
-  "bugs": "https://github.com/olivernn/lunr.js/issues",
+  "bugs": "https://github.com/mlengse/lunr.js/issues",
   "main": "lunr.js",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/olivernn/lunr.js.git"
+    "url": "https://github.com/mlengse/lunr.js.git"
   },
   "devDependencies": {
     "benchmark": "2.1.x",
