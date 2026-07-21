@@ -5,12 +5,12 @@ suite('search', function () {
       title: 'Mr. Green kills Colonel Mustard',
       body: 'Mr. Green killed Colonel Mustard in the study with the candlestick. Mr. Green is not a very nice fellow.',
       wordCount: 19
-    },{
+    }, {
       id: 'b',
       title: 'Plumb waters plant',
       body: 'Professor Plumb has a green plant in his study',
       wordCount: 9
-    },{
+    }, {
       id: 'c',
       title: 'Scarlett helps Professor',
       body: 'Miss Scarlett watered Professor Plumbs green plant while he was away from his office last week.',
@@ -212,7 +212,7 @@ suite('search', function () {
         suite('enabled (default)', function () {
           setup(function () {
             this.results = this.idx.query(function (q) {
-              q.clause({term: 'study', usePipeline: true})
+              q.clause({ term: 'study', usePipeline: true })
             })
           })
 
@@ -229,7 +229,7 @@ suite('search', function () {
         suite('disabled', function () {
           setup(function () {
             this.results = this.idx.query(function (q) {
-              q.clause({term: 'study', usePipeline: false})
+              q.clause({ term: 'study', usePipeline: false })
             })
           })
 
