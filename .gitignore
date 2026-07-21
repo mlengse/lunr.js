@@ -1,5 +1,4 @@
 /node_modules
 docs/
 test/env/file_list.json
-
-.idea/workspace.xml
+.idea/
