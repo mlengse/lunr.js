@@ -77,9 +77,8 @@ docs: $(SRC)
 	${JSDOC} -R README.md -d docs -c build/jsdoc.conf.json $^
 
 clean:
-	rm -f lunr{.min,}.js
+	rm -f lunr.js lunr.min.js
 	rm -rf docs
-	rm *.json
 
 reset:
 	git checkout lunr.* *.json

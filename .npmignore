@@ -1,0 +1,10 @@
+test/
+docs/
+perf/
+.travis.yml
+.gitignore
+.eslintrc
+bower.json
+component.json
+Makefile
+build/

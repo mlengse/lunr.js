@@ -332,6 +332,12 @@ suite('lunr.QueryParser', function () {
       })
     })
 
+    suite('negative edit distance', function () {
+      test('throws lunr.QueryParseError', function () {
+        assert.throws(function () { parse('foo~-1') }, lunr.QueryParseError)
+      })
+    })
+
     suite('edit distance without a term', function () {
       test('throws lunr.QueryParseError', function () {
         assert.throws(function () { parse('~2') }, lunr.QueryParseError)
@@ -363,6 +369,18 @@ suite('lunr.QueryParser', function () {
     suite('non-numeric boost', function () {
       test('throws lunr.QueryParseError', function () {
         assert.throws(function () { parse('foo^a') }, lunr.QueryParseError)
+      })
+    })
+
+    suite('negative boost', function () {
+      test('throws lunr.QueryParseError', function () {
+        assert.throws(function () { parse('foo^-1') }, lunr.QueryParseError)
+      })
+    })
+
+    suite('zero boost', function () {
+      test('throws lunr.QueryParseError', function () {
+        assert.throws(function () { parse('foo^0') }, lunr.QueryParseError)
       })
     })
 

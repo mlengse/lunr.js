@@ -111,4 +111,21 @@ suite('lunr.tokenizer', function () {
     assert.deepEqual(tokens[0].metadata.hurp, 'durp')
     assert.deepEqual(tokens[1].metadata.hurp, 'durp')
   })
+
+  test('NFC normalization of combining characters', function () {
+    // e + combining acute accent = é (NFC normalized)
+    var tokens = lunr.tokenizer('caf\u0065\u0301').map(toString)
+    assert.sameMembers(['caf\u00e9'], tokens)
+  })
+
+  test('NFC normalization of precomposed characters', function () {
+    // é (precomposed) should remain as-is
+    var tokens = lunr.tokenizer('caf\u00e9').map(toString)
+    assert.sameMembers(['caf\u00e9'], tokens)
+  })
+
+  test('NFC normalization in array input', function () {
+    var tokens = lunr.tokenizer(['caf\u0065\u0301']).map(toString)
+    assert.sameMembers(['caf\u00e9'], tokens)
+  })
 })

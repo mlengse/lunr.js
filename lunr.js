@@ -6,7 +6,6 @@
 
 ;(function(){
 
-
 /**
  * A convenience function for configuring and constructing
  * a new lunr Index.
@@ -425,13 +424,13 @@ lunr.tokenizer = function (obj, metadata) {
   if (Array.isArray(obj)) {
     return obj.map(function (t) {
       return new lunr.Token(
-        lunr.utils.asString(t).toLowerCase(),
+        lunr.utils.asString(t).normalize('NFC').toLowerCase(),
         lunr.utils.clone(metadata)
       )
     })
   }
 
-  var str = obj.toString().toLowerCase(),
+  var str = obj.toString().normalize('NFC').toLowerCase(),
       len = str.length,
       tokens = []
 
@@ -761,7 +760,7 @@ lunr.Pipeline.prototype.toJSON = function () {
  * @param {Number[]} [elements] - The flat list of element index and element value pairs.
  */
 lunr.Vector = function (elements) {
-  this._magnitude = 0
+  this._magnitude = undefined
   this.elements = elements || []
 }
 
@@ -843,7 +842,7 @@ lunr.Vector.prototype.insert = function (insertIdx, val) {
  * requested value are passed as arguments
  */
 lunr.Vector.prototype.upsert = function (insertIdx, val, fn) {
-  this._magnitude = 0
+  this._magnitude = undefined
   var position = this.positionForIndex(insertIdx)
 
   if (this.elements[position] === insertIdx) {
@@ -859,7 +858,7 @@ lunr.Vector.prototype.upsert = function (insertIdx, val, fn) {
  * @returns {Number}
  */
 lunr.Vector.prototype.magnitude = function () {
-  if (this._magnitude) return this._magnitude
+  if (this._magnitude !== undefined) return this._magnitude
 
   var sumOfSquares = 0,
       elementsLength = this.elements.length
@@ -903,6 +902,11 @@ lunr.Vector.prototype.dot = function (otherVector) {
 
 /**
  * Calculates the similarity between this vector and another vector.
+ *
+ * Note: This is not true cosine similarity. The result is asymmetric:
+ * a.similarity(b) !== b.similarity(a). The formula divides by this
+ * vector's magnitude only. In lunr's scoring model, this vector is
+ * always the query vector, providing query-length normalization.
  *
  * @param {lunr.Vector} otherVector - The other vector to calculate the
  * similarity with.
@@ -1336,9 +1340,10 @@ lunr.Pipeline.registerFunction(lunr.stopWordFilter, 'stopWordFilter')
  * characters from the beginning and end of tokens before they
  * enter the index.
  *
- * This implementation may not work correctly for non latin
- * characters and should either be removed or adapted for use
- * with languages with non-latin characters.
+ * By default this implementation trims ASCII non-word characters (\W).
+ * For non-latin characters, set `lunr.trimmer.wordCharacters` to a
+ * string of allowed characters before tokenization. Language-specific
+ * trimmers (e.g. from lunr-languages) should override this default.
  *
  * @static
  * @implements {lunr.PipelineFunction}
@@ -1351,6 +1356,8 @@ lunr.trimmer = function (token) {
     return s.replace(/^\W+/, '').replace(/\W+$/, '')
   })
 }
+
+lunr.trimmer.wordCharacters = "A-Za-z\xAA\xBA\xC0-\xD6\xD8-\xF6\xF8-\u02FF\u0370-\u037D\u037F-\u1FFF\u200C-\u200D\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD"
 
 lunr.Pipeline.registerFunction(lunr.trimmer, 'trimmer')
 
@@ -2320,6 +2327,10 @@ lunr.Index.load = function (serializedIndex) {
     throw new Error("malformed serialized index, fields must be an array")
   }
 
+  if (serializedIndex.pipeline === undefined || serializedIndex.pipeline === null) {
+    throw new Error("malformed serialized index, pipeline must be defined")
+  }
+
   for (var i = 0; i < serializedVectors.length; i++) {
     var tuple = serializedVectors[i],
         ref = tuple[0],
@@ -2383,8 +2394,8 @@ lunr.Builder = function () {
   this._fields = Object.create(null)
   this._documents = Object.create(null)
   this.invertedIndex = Object.create(null)
-  this.fieldTermFrequencies = {}
-  this.fieldLengths = {}
+  this.fieldTermFrequencies = Object.create(null)
+  this.fieldLengths = Object.create(null)
   this.tokenizer = lunr.tokenizer
   this.pipeline = new lunr.Pipeline
   this.searchPipeline = new lunr.Pipeline
@@ -2502,7 +2513,7 @@ lunr.Builder.prototype.k1 = function (number) {
  * @param {number} [attributes.boost=1] - Boost applied to all terms within this document.
  */
 lunr.Builder.prototype.add = function (doc, attributes) {
-  if (doc === undefined) {
+  if (doc === undefined || doc === null) {
     throw new Error("cannot add a undefined or null document to the index")
   }
 
@@ -2510,6 +2521,10 @@ lunr.Builder.prototype.add = function (doc, attributes) {
 
   if (docRef === undefined) {
     throw new Error("cannot add a document without a '" + this._ref + "' field to the index")
+  }
+
+  if (docRef in this._documents) {
+    throw new Error("cannot add a document with a duplicate ref '" + docRef + "'")
   }
 
   var fields = Object.keys(this._fields)
@@ -2589,8 +2604,8 @@ lunr.Builder.prototype.calculateAverageFieldLengths = function () {
 
   var fieldRefs = Object.keys(this.fieldLengths),
       numberOfFields = fieldRefs.length,
-      accumulator = {},
-      documentsWithField = {}
+      accumulator = Object.create(null),
+      documentsWithField = Object.create(null)
 
   for (var i = 0; i < numberOfFields; i++) {
     var fieldRef = lunr.FieldRef.fromString(fieldRefs[i]),
@@ -2619,7 +2634,7 @@ lunr.Builder.prototype.calculateAverageFieldLengths = function () {
  * @private
  */
 lunr.Builder.prototype.createFieldVectors = function () {
-  var fieldVectors = {},
+  var fieldVectors = Object.create(null),
       fieldRefs = Object.keys(this.fieldTermFrequencies),
       fieldRefsLength = fieldRefs.length,
       termIdfCache = Object.create(null)
@@ -2690,6 +2705,10 @@ lunr.Builder.prototype.createTokenSet = function () {
  * @returns {lunr.Index}
  */
 lunr.Builder.prototype.build = function () {
+  if (this.documentCount === 0) {
+    throw new Error("cannot build index with no documents")
+  }
+
   this.calculateAverageFieldLengths()
   this.createFieldVectors()
   this.createTokenSet()
@@ -2789,7 +2808,7 @@ lunr.MatchData.prototype.combine = function (otherMatchData) {
         var key = keys[k]
 
         if (this.metadata[term][field][key] === undefined) {
-          this.metadata[term][field][key] = otherMatchData.metadata[term][field][key]
+          this.metadata[term][field][key] = otherMatchData.metadata[term][field][key].slice()
         } else {
           this.metadata[term][field][key] = this.metadata[term][field][key].concat(otherMatchData.metadata[term][field][key])
         }
@@ -2809,12 +2828,22 @@ lunr.MatchData.prototype.combine = function (otherMatchData) {
 lunr.MatchData.prototype.add = function (term, field, metadata) {
   if (!(term in this.metadata)) {
     this.metadata[term] = Object.create(null)
-    this.metadata[term][field] = metadata
+    this.metadata[term][field] = Object.create(null)
+    var metadataKeys = Object.keys(metadata)
+    for (var i = 0; i < metadataKeys.length; i++) {
+      var key = metadataKeys[i]
+      this.metadata[term][field][key] = metadata[key].slice()
+    }
     return
   }
 
   if (!(field in this.metadata[term])) {
-    this.metadata[term][field] = metadata
+    this.metadata[term][field] = Object.create(null)
+    var metadataKeys = Object.keys(metadata)
+    for (var i = 0; i < metadataKeys.length; i++) {
+      var key = metadataKeys[i]
+      this.metadata[term][field][key] = metadata[key].slice()
+    }
     return
   }
 
@@ -2826,7 +2855,7 @@ lunr.MatchData.prototype.add = function (term, field, metadata) {
     if (key in this.metadata[term][field]) {
       this.metadata[term][field][key] = this.metadata[term][field][key].concat(metadata[key])
     } else {
-      this.metadata[term][field][key] = metadata[key]
+      this.metadata[term][field][key] = metadata[key].slice()
     }
   }
 }
@@ -2973,6 +3002,8 @@ lunr.Query.prototype.clause = function (clause) {
  * @returns boolean
  */
 lunr.Query.prototype.isNegated = function () {
+  if (this.clauses.length === 0) return false
+
   for (var i = 0; i < this.clauses.length; i++) {
     if (this.clauses[i].presence != lunr.Query.presence.PROHIBITED) {
       return false
@@ -3425,6 +3456,11 @@ lunr.QueryParser.parseEditDistance = function (parser) {
     throw new lunr.QueryParseError (errorMessage, lexeme.start, lexeme.end)
   }
 
+  if (editDistance < 0) {
+    var errorMessage = "edit distance must be a non-negative integer"
+    throw new lunr.QueryParseError (errorMessage, lexeme.start, lexeme.end)
+  }
+
   parser.currentClause.editDistance = editDistance
 
   var nextLexeme = parser.peekLexeme()
@@ -3461,10 +3497,15 @@ lunr.QueryParser.parseBoost = function (parser) {
     return
   }
 
-  var boost = parseInt(lexeme.str, 10)
+  var boost = parseFloat(lexeme.str)
 
   if (isNaN(boost)) {
     var errorMessage = "boost must be numeric"
+    throw new lunr.QueryParseError (errorMessage, lexeme.start, lexeme.end)
+  }
+
+  if (boost <= 0) {
+    var errorMessage = "boost must be a positive number"
     throw new lunr.QueryParseError (errorMessage, lexeme.start, lexeme.end)
   }
 

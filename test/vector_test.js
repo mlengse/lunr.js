@@ -15,6 +15,20 @@ suite('lunr.Vector', function () {
       var vector = vectorFromArgs(4,5,6)
       assert.equal(Math.sqrt(77), vector.magnitude())
     })
+
+    test('magnitude of zero vector is cached correctly', function () {
+      var vector = new lunr.Vector
+      assert.equal(0, vector.magnitude())
+      assert.equal(0, vector.magnitude())
+    })
+
+    test('magnitude cache invalidated by upsert', function () {
+      var vector = new lunr.Vector
+      vector.insert(0, 0)
+      assert.equal(0, vector.magnitude())
+      vector.upsert(0, 5, function (a, b) { return a + b })
+      assert.equal(5, vector.magnitude())
+    })
   })
 
   suite('#dot', function () {

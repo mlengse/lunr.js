@@ -4,6 +4,28 @@ suite('lunr.Builder', function () {
       this.builder = new lunr.Builder
     })
 
+    test('throws on null document', function () {
+      this.builder.field('title')
+      assert.throws(function () {
+        this.builder.add(null)
+      }.bind(this))
+    })
+
+    test('throws on undefined document', function () {
+      this.builder.field('title')
+      assert.throws(function () {
+        this.builder.add(undefined)
+      }.bind(this))
+    })
+
+    test('throws on duplicate document ref', function () {
+      this.builder.field('title')
+      this.builder.add({ id: '1', title: 'first' })
+      assert.throws(function () {
+        this.builder.add({ id: '1', title: 'duplicate' })
+      }.bind(this))
+    })
+
     test('field contains terms that clash with object prototype', function () {
       this.builder.field('title')
       this.builder.add({ id: 'id', title: 'constructor'})
@@ -184,6 +206,14 @@ suite('lunr.Builder', function () {
       builder.build()
 
       this.builder = builder
+    })
+
+    test('throws when no documents added', function () {
+      var builder = new lunr.Builder
+      builder.field('title')
+      assert.throws(function () {
+        builder.build()
+      })
     })
 
     test('adds tokens to invertedIndex', function () {
