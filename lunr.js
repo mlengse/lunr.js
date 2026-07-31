@@ -325,6 +325,7 @@ lunr.idf = function (posting, documentCount) {
 
   for (var fieldName in posting) {
     if (fieldName === '_index') continue // Ignore the term index, its not a field
+    if (!Object.prototype.hasOwnProperty.call(posting, fieldName)) continue
 
     var refs = posting[fieldName],
         refCount = 0
