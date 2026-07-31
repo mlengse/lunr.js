@@ -15,18 +15,27 @@
     "url": "https://github.com/mlengse/lunr.js.git"
   },
   "devDependencies": {
-    "benchmark": "2.1.x",
-    "chai": "3.5.x",
-    "eslint-plugin-spellcheck": "0.0.8",
-    "eslint": "3.4.x",
-    "jsdoc": "3.5.x",
-    "mocha": "3.3.x",
-    "mustache": "2.2.x",
-    "node-static": "0.7.x",
-    "uglify-js": "2.6.x",
-    "word-list": "1.0.x"
+    "benchmark": "^2.1.4",
+    "chai": "^4.5.0",
+    "eslint": "^8.57.1",
+    "eslint-plugin-spellcheck": "^0.0.20",
+    "http-server": "^14.1.1",
+    "jsdoc": "^4.0.5",
+    "mocha": "^11.7.6",
+    "mustache": "^4.2.0",
+    "uglify-js": "^3.19.3",
+    "word-list": "^3.1.0"
   },
   "scripts": {
-    "test": "make test"
+    "build": "node build/build.js lunr.js",
+    "minify": "node build/build.js lunr.min.js",
+    "test": "mocha test/*.js -u tdd -r test/test_helper.js -R dot -C",
+    "lint": "eslint lib",
+    "docs": "jsdoc -R README.md -d docs -c build/jsdoc.conf.json lib"
+  },
+  "overrides": {
+    "diff": "^8.0.3",
+    "serialize-javascript": "^7.0.5",
+    "minimatch": "^10.0.3"
   }
 }

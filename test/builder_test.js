@@ -30,7 +30,6 @@ suite('lunr.Builder', function () {
       this.builder.field('title')
       this.builder.add({ id: 'id', title: 'constructor'})
 
-      assert.deepProperty(this.builder.invertedIndex, 'constructor.title.id')
       assert.deepEqual(this.builder.invertedIndex.constructor.title.id, {})
 
       assert.equal(this.builder.fieldTermFrequencies['title/id'].constructor, 1)
@@ -40,7 +39,6 @@ suite('lunr.Builder', function () {
       this.builder.field('constructor')
       this.builder.add({ id: 'id', constructor: 'constructor'})
 
-      assert.deepProperty(this.builder.invertedIndex, 'constructor.constructor.id')
       assert.deepEqual(this.builder.invertedIndex.constructor.constructor.id, {})
     })
 
@@ -48,7 +46,6 @@ suite('lunr.Builder', function () {
       this.builder.field('title')
       this.builder.add({ id: 'constructor', title: 'word'})
 
-      assert.deepProperty(this.builder.invertedIndex, 'word.title.constructor')
       assert.deepEqual(this.builder.invertedIndex.word.title.constructor, {})
     })
 
@@ -69,7 +66,6 @@ suite('lunr.Builder', function () {
 
       this.builder.field('title')
       this.builder.add({ id: 'id', title: 'word'})
-      assert.deepProperty(this.builder.invertedIndex, 'word.title.id.constructor')
       assert.deepEqual(this.builder.invertedIndex.word.title.id.constructor, ['foo'])
     })
 
@@ -87,7 +83,7 @@ suite('lunr.Builder', function () {
         }
       })
 
-      assert.deepProperty(this.builder.invertedIndex, 'bob.name.id')
+      assert.nestedProperty(this.builder.invertedIndex, 'bob.name.id')
     })
   })
 
@@ -217,7 +213,7 @@ suite('lunr.Builder', function () {
     })
 
     test('adds tokens to invertedIndex', function () {
-      assert.deepProperty(this.builder.invertedIndex, 'test.title.id')
+      assert.nestedProperty(this.builder.invertedIndex, 'test.title.id')
     })
 
     test('builds a vector space of the document fields', function () {

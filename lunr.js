@@ -325,7 +325,15 @@ lunr.idf = function (posting, documentCount) {
 
   for (var fieldName in posting) {
     if (fieldName === '_index') continue // Ignore the term index, its not a field
-    documentsWithTerm += Object.keys(posting[fieldName]).length
+
+    var refs = posting[fieldName],
+        refCount = 0
+
+    for (var ref in refs) {
+      if (Object.prototype.hasOwnProperty.call(refs, ref)) refCount++
+    }
+
+    documentsWithTerm += refCount
   }
 
   var x = (documentCount - documentsWithTerm + 0.5) / (documentsWithTerm + 0.5)
@@ -468,7 +476,7 @@ lunr.tokenizer = function (obj, metadata) {
  * @static
  * @see lunr.tokenizer
  */
-lunr.tokenizer.separator = /[\s\-]+/
+lunr.tokenizer.separator = /[\s-]+/
 
 /*!
  * lunr.Pipeline
@@ -1719,8 +1727,25 @@ lunr.TokenSet.prototype.toString = function () {
  * @returns {lunr.TokenSet}
  */
 lunr.TokenSet.prototype.intersect = function (b) {
-  var output = new lunr.TokenSet,
-      frame = undefined
+  var frame = undefined,
+      memoised = {},
+      expanded = {}
+
+  // Both input token sets can be minimal DAGs: the index token set is
+  // minimised to share common suffixes, and wildcard and fuzzy token sets
+  // reuse their '*' edge. This means the same pair of nodes can be reached
+  // down many different paths. Memoise a single output node per pair and
+  // expand each pair only once, otherwise the number of states produced
+  // (and the work needed to produce them) can explode exponentially.
+  var nodeFor = function (node, qNode) {
+    var key = node.id + ':' + qNode.id
+    if (key in memoised) return memoised[key]
+    var out = new lunr.TokenSet
+    memoised[key] = out
+    return out
+  }
+
+  var output = nodeFor(this, b)
 
   var stack = [{
     qNode: b,
@@ -1730,6 +1755,16 @@ lunr.TokenSet.prototype.intersect = function (b) {
 
   while (stack.length) {
     frame = stack.pop()
+
+    var pairKey = frame.node.id + ':' + frame.qNode.id
+
+    if (expanded[pairKey] === frame.output) {
+      // this pair of nodes has already been fully expanded into
+      // this output node, no further work is required
+      continue
+    }
+
+    expanded[pairKey] = frame.output
 
     // NOTE: As with the #toString method, we are using
     // Object.keys and a for loop instead of a for-in loop
@@ -1750,21 +1785,20 @@ lunr.TokenSet.prototype.intersect = function (b) {
           var node = frame.node.edges[nEdge],
               qNode = frame.qNode.edges[qEdge],
               final = node.final && qNode.final,
-              next = undefined
+              next = nodeFor(node, qNode)
 
           if (nEdge in frame.output.edges) {
-            // an edge already exists for this character
-            // no need to create a new node, just set the finality
-            // bit unless this node is already final
+            // an edge already exists for this character, both matches
+            // share this node so their finality is combined
             next = frame.output.edges[nEdge]
-            next.final = next.final || final
+          }
 
-          } else {
+          next.final = next.final || final
+
+          if (!(nEdge in frame.output.edges)) {
             // no edge exists yet, must create one
             // set the finality bit and insert it
             // into the output
-            next = new lunr.TokenSet
-            next.final = final
             frame.output.edges[nEdge] = next
           }
 
@@ -3537,7 +3571,6 @@ lunr.QueryParser.parseBoost = function (parser) {
       throw new lunr.QueryParseError (errorMessage, nextLexeme.start, nextLexeme.end)
   }
 }
-
 
   /**
    * export the module via AMD, CommonJS or as a browser global
