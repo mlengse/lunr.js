@@ -50,4 +50,37 @@ suite('serialization', function () {
 
     assert.deepEqual(idxResults, doubleSerializedResults)
   })
+
+  suite('malformed serialized index', function () {
+    setup(function () {
+      this.serializedIdx = JSON.parse(JSON.stringify(this.idx))
+    })
+
+    test('missing pipeline throws a descriptive error, not a TypeError', function () {
+      var serializedIdx = this.serializedIdx
+      delete serializedIdx.pipeline
+
+      assert.throws(function () {
+        lunr.Index.load(serializedIdx)
+      }, /pipeline must be an array/)
+    })
+
+    test('malformed fieldVectors tuple throws a descriptive error', function () {
+      var serializedIdx = this.serializedIdx
+      serializedIdx.fieldVectors[0] = null
+
+      assert.throws(function () {
+        lunr.Index.load(serializedIdx)
+      }, /fieldVectors tuples must be of the form \[ref, elements\]/)
+    })
+
+    test('malformed invertedIndex tuple throws a descriptive error', function () {
+      var serializedIdx = this.serializedIdx
+      serializedIdx.invertedIndex[0] = []
+
+      assert.throws(function () {
+        lunr.Index.load(serializedIdx)
+      }, /invertedIndex tuples must be of the form \[term, posting\]/)
+    })
+  })
 })

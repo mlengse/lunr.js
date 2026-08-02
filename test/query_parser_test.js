@@ -372,6 +372,60 @@ suite('lunr.QueryParser', function () {
       })
     })
 
+    suite('QueryParseError shape', function () {
+      var error
+
+      setup(function () {
+        try {
+          parse('foo^a')
+        } catch (e) {
+          error = e
+        }
+      })
+
+      test('is an instance of Error', function () {
+        assert.instanceOf(error, Error)
+      })
+
+      test('constructor is set correctly', function () {
+        assert.equal(error.constructor, lunr.QueryParseError)
+        assert.equal(error.constructor.name, 'QueryParseError')
+      })
+
+      test('has a stack trace', function () {
+        assert.ok(error.stack)
+      })
+
+      test('exposes name, message and positions', function () {
+        assert.equal(error.name, 'QueryParseError')
+        assert.ok(error.message)
+        assert.typeOf(error.start, 'number')
+        assert.typeOf(error.end, 'number')
+      })
+    })
+
+    suite('single term with decimal boost', function () {
+      setup(function () {
+        this.clauses = parse('foo^1.5')
+      })
+
+      test('has 1 clause', function () {
+        assert.lengthOf(this.clauses, 1)
+      })
+
+      test('term', function () {
+        assert.equal('foo', this.clauses[0].term)
+      })
+
+      test('boost', function () {
+        assert.equal(1.5, this.clauses[0].boost)
+      })
+
+      test('fields', function () {
+        assert.sameMembers(['title', 'body'], this.clauses[0].fields)
+      })
+    })
+
     suite('negative boost', function () {
       test('throws lunr.QueryParseError', function () {
         assert.throws(function () { parse('foo^-1') }, lunr.QueryParseError)

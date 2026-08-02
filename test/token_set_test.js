@@ -323,5 +323,21 @@ suite('lunr.TokenSet', function () {
       assert.sameMembers(x.intersect(y).toArray(), ['bca'])
     })
 
+    test('minimal DAG with contained wildcard does not leak matches', function () {
+      var x = lunr.TokenSet.fromArray(['abbca', 'dda']),
+          y = lunr.TokenSet.fromString('*c*'),
+          z = x.intersect(y)
+
+      assert.sameMembers(['abbca'], z.toArray())
+    })
+
+    test('minimal DAG with fuzzy edit distance does not leak matches', function () {
+      var x = lunr.TokenSet.fromArray(['aab', 'dab']),
+          y = lunr.TokenSet.fromFuzzyString('aac', 1),
+          z = x.intersect(y)
+
+      assert.sameMembers(['aab'], z.toArray())
+    })
+
   })
 })

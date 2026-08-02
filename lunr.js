@@ -1361,8 +1361,12 @@ lunr.Pipeline.registerFunction(lunr.stopWordFilter, 'stopWordFilter')
  * @see lunr.Pipeline
  */
 lunr.trimmer = function (token) {
+  var wordCharacters = lunr.trimmer.wordCharacters + '0-9_',
+      leadingNonWord = new RegExp('^[^' + wordCharacters + ']+'),
+      trailingNonWord = new RegExp('[^' + wordCharacters + ']+$')
+
   return token.update(function (s) {
-    return s.replace(/^\W+/, '').replace(/\W+$/, '')
+    return s.replace(leadingNonWord, '').replace(trailingNonWord, '')
   })
 }
 
@@ -1728,26 +1732,17 @@ lunr.TokenSet.prototype.toString = function () {
  * @returns {lunr.TokenSet}
  */
 lunr.TokenSet.prototype.intersect = function (b) {
-  var frame = undefined,
-      memoised = {},
-      expanded = {}
+  var output = new lunr.TokenSet,
+      frame = undefined
 
-  // Both input token sets can be minimal DAGs: the index token set is
+  // NOTE: both input token sets can be minimal DAGs: the index token set is
   // minimised to share common suffixes, and wildcard and fuzzy token sets
-  // reuse their '*' edge. This means the same pair of nodes can be reached
-  // down many different paths. Memoise a single output node per pair and
-  // expand each pair only once, otherwise the number of states produced
-  // (and the work needed to produce them) can explode exponentially.
-  var nodeFor = function (node, qNode) {
-    var key = node.id + ':' + qNode.id
-    if (key in memoised) return memoised[key]
-    var out = new lunr.TokenSet
-    memoised[key] = out
-    return out
-  }
-
-  var output = nodeFor(this, b)
-
+  // reuse their '*' edge. This means the same pair of nodes (node, qNode) can
+  // be reached down many different paths. The output nodes must therefore not
+  // be memoised per pair: a node is only shared when two matches land on the
+  // same character edge of a single output node (a sound union), never across
+  // unrelated paths, otherwise the merged language (including finality) leaks
+  // to paths that should carry only one of the pairs.
   var stack = [{
     qNode: b,
     output: output,
@@ -1757,20 +1752,6 @@ lunr.TokenSet.prototype.intersect = function (b) {
   while (stack.length) {
     frame = stack.pop()
 
-    var pairKey = frame.node.id + ':' + frame.qNode.id
-
-    if (expanded[pairKey] === frame.output) {
-      // this pair of nodes has already been fully expanded into
-      // this output node, no further work is required
-      continue
-    }
-
-    expanded[pairKey] = frame.output
-
-    // NOTE: As with the #toString method, we are using
-    // Object.keys and a for loop instead of a for-in loop
-    // as both of these objects enter 'hash' mode, causing
-    // the function to be de-optimised in V8
     var qEdges = Object.keys(frame.qNode.edges),
         qLen = qEdges.length,
         nEdges = Object.keys(frame.node.edges),
@@ -1786,27 +1767,26 @@ lunr.TokenSet.prototype.intersect = function (b) {
           var node = frame.node.edges[nEdge],
               qNode = frame.qNode.edges[qEdge],
               final = node.final && qNode.final,
-              next = nodeFor(node, qNode)
+              next = undefined
 
           if (nEdge in frame.output.edges) {
             // an edge already exists for this character, both matches
             // share this node so their finality is combined
             next = frame.output.edges[nEdge]
-          }
-
-          next.final = next.final || final
-
-          if (!(nEdge in frame.output.edges)) {
+            next.final = next.final || final
+          } else {
             // no edge exists yet, must create one
             // set the finality bit and insert it
             // into the output
+            next = new lunr.TokenSet
+            next.final = final
             frame.output.edges[nEdge] = next
           }
 
           stack.push({
+            node: node,
             qNode: qNode,
-            output: next,
-            node: node
+            output: next
           })
         }
       }
@@ -1832,7 +1812,7 @@ lunr.TokenSet.Builder.prototype.insert = function (word) {
   }
 
   for (var i = 0; i < word.length && i < this.previousWord.length; i++) {
-    if (word[i] != this.previousWord[i]) break
+    if (word[i] !== this.previousWord[i]) break
     commonPrefix++
   }
 
@@ -2343,10 +2323,9 @@ lunr.Index.load = function (serializedIndex) {
       serializedVectors = serializedIndex.fieldVectors,
       invertedIndex = Object.create(null),
       serializedInvertedIndex = serializedIndex.invertedIndex,
-      tokenSetBuilder = new lunr.TokenSet.Builder,
-      pipeline = lunr.Pipeline.load(serializedIndex.pipeline)
+      tokenSetBuilder = new lunr.TokenSet.Builder
 
-  if (serializedIndex.version != lunr.version) {
+  if (serializedIndex.version !== lunr.version) {
     lunr.utils.warn("Version mismatch when loading serialised index. Current version of lunr '" + lunr.version + "' does not match serialized index '" + serializedIndex.version + "'")
   }
 
@@ -2362,21 +2341,31 @@ lunr.Index.load = function (serializedIndex) {
     throw new Error("malformed serialized index, fields must be an array")
   }
 
-  if (serializedIndex.pipeline === undefined || serializedIndex.pipeline === null) {
-    throw new Error("malformed serialized index, pipeline must be defined")
+  if (!Array.isArray(serializedIndex.pipeline)) {
+    throw new Error("malformed serialized index, pipeline must be an array")
   }
 
   for (var i = 0; i < serializedVectors.length; i++) {
-    var tuple = serializedVectors[i],
-        ref = tuple[0],
+    var tuple = serializedVectors[i]
+
+    if (!Array.isArray(tuple) || tuple.length < 2) {
+      throw new Error("malformed serialized index, fieldVectors tuples must be of the form [ref, elements]")
+    }
+
+    var ref = tuple[0],
         elements = tuple[1]
 
     fieldVectors[ref] = new lunr.Vector(elements)
   }
 
   for (var i = 0; i < serializedInvertedIndex.length; i++) {
-    var tuple = serializedInvertedIndex[i],
-        term = tuple[0],
+    var tuple = serializedInvertedIndex[i]
+
+    if (!Array.isArray(tuple) || tuple.length < 2) {
+      throw new Error("malformed serialized index, invertedIndex tuples must be of the form [term, posting]")
+    }
+
+    var term = tuple[0],
         posting = tuple[1]
 
     tokenSetBuilder.insert(term)
@@ -2384,6 +2373,8 @@ lunr.Index.load = function (serializedIndex) {
   }
 
   tokenSetBuilder.finish()
+
+  var pipeline = lunr.Pipeline.load(serializedIndex.pipeline)
 
   attrs.fields = serializedIndex.fields
 
@@ -3012,6 +3003,8 @@ lunr.Query.prototype.clause = function (clause) {
     clause.wildcard = lunr.Query.wildcard.NONE
   }
 
+  // NOTE: lunr.Query.wildcard is a String object (new String("*")), so these
+  // comparisons rely on loose equality to coerce it to its primitive value.
   if ((clause.wildcard & lunr.Query.wildcard.LEADING) && (clause.term.charAt(0) != lunr.Query.wildcard)) {
     clause.term = "*" + clause.term
   }
@@ -3040,7 +3033,7 @@ lunr.Query.prototype.isNegated = function () {
   if (this.clauses.length === 0) return false
 
   for (var i = 0; i < this.clauses.length; i++) {
-    if (this.clauses[i].presence != lunr.Query.presence.PROHIBITED) {
+    if (this.clauses[i].presence !== lunr.Query.presence.PROHIBITED) {
       return false
     }
   }
@@ -3088,14 +3081,21 @@ lunr.Query.prototype.term = function (term, options) {
   return this
 }
 
-lunr.QueryParseError = function (message, start, end) {
+lunr.QueryParseError = function QueryParseError (message, start, end) {
   this.name = "QueryParseError"
   this.message = message
   this.start = start
   this.end = end
+
+  if (Error.captureStackTrace) {
+    Error.captureStackTrace(this, lunr.QueryParseError)
+  } else {
+    this.stack = (new Error(message)).stack
+  }
 }
 
 lunr.QueryParseError.prototype = Object.create(Error.prototype)
+lunr.QueryParseError.prototype.constructor = lunr.QueryParseError
 
 lunr.QueryLexer = function (str) {
   this.lexemes = []
@@ -3181,8 +3181,27 @@ lunr.QueryLexer.prototype.acceptDigitRun = function () {
     charCode = char.charCodeAt(0)
   } while (charCode > 47 && charCode < 58)
 
-  if (char != lunr.QueryLexer.EOS) {
+  if (char !== lunr.QueryLexer.EOS) {
     this.backup()
+  }
+}
+
+lunr.QueryLexer.prototype.acceptDecimalRun = function () {
+  var char
+
+  this.acceptDigitRun()
+
+  // A boost may be expressed as an integer or a decimal. When a decimal
+  // point follows the integer part the fractional digits are consumed here
+  // so that e.g. "1.5" is read as a single boost rather than "1" plus a
+  // term ".5".
+  if (this.more()) {
+    char = this.str.charAt(this.pos)
+
+    if (char === ".") {
+      this.pos += 1
+      this.acceptDigitRun()
+    }
   }
 }
 
@@ -3226,7 +3245,7 @@ lunr.QueryLexer.lexEditDistance = function (lexer) {
 
 lunr.QueryLexer.lexBoost = function (lexer) {
   lexer.ignore()
-  lexer.acceptDigitRun()
+  lexer.acceptDecimalRun()
   lexer.emit(lunr.QueryLexer.BOOST)
   return lunr.QueryLexer.lexText
 }

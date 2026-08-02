@@ -522,6 +522,43 @@ suite('lunr.QueryLexer', function () {
       })
     })
 
+    suite('term with decimal boost', function () {
+      setup(function () {
+        this.lexer = lex('foo^1.5')
+      })
+
+      test('produces 2 lexems', function () {
+        assert.lengthOf(this.lexer.lexemes, 2)
+      })
+
+      suite('lexemes', function () {
+        setup(function () {
+          this.termLexeme = this.lexer.lexemes[0]
+          this.boostLexeme = this.lexer.lexemes[1]
+        })
+
+        test('#type', function () {
+          assert.equal(lunr.QueryLexer.TERM, this.termLexeme.type)
+          assert.equal(lunr.QueryLexer.BOOST, this.boostLexeme.type)
+        })
+
+        test('#str', function () {
+          assert.equal('foo', this.termLexeme.str)
+          assert.equal('1.5', this.boostLexeme.str)
+        })
+
+        test('#start', function () {
+          assert.equal(0, this.termLexeme.start)
+          assert.equal(4, this.boostLexeme.start)
+        })
+
+        test('#end', function () {
+          assert.equal(3, this.termLexeme.end)
+          assert.equal(7, this.boostLexeme.end)
+        })
+      })
+    })
+
     suite('term with field, boost and edit distance', function () {
       setup(function () {
         this.lexer = lex('title:foo^10~5')

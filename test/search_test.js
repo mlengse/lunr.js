@@ -18,6 +18,39 @@ suite('search', function () {
     }]
   })
 
+  suite('TokenSet intersect regression', function () {
+    setup(function () {
+      this.idx = lunr(function () {
+        this.ref('id')
+        this.field('text')
+
+        this.pipeline.remove(lunr.trimmer)
+        this.pipeline.remove(lunr.stopWordFilter)
+        this.pipeline.remove(lunr.stemmer)
+
+        this.add({ id: '1', text: 'abbca' })
+        this.add({ id: '2', text: 'dda' })
+        this.add({ id: '3', text: 'pintar dan pandai' })
+      })
+    })
+
+    test('contained wildcard only matches terms containing the wildcard character', function () {
+      var results = this.idx.search('*c*').map(function (result) {
+        return result.ref
+      })
+
+      assert.sameMembers(results, ['1'])
+    })
+
+    test('leading wildcard only matches terms containing the wildcard substring', function () {
+      var results = this.idx.search('*da*').map(function (result) {
+        return result.ref
+      })
+
+      assert.sameMembers(results, ['2', '3'])
+    })
+  })
+
   suite('with build-time field boosts', function () {
     setup(function () {
       var self = this
